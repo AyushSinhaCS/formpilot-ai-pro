@@ -1,3 +1,4 @@
+import fetch from "node-fetch";
 import express from "express";
 import Database from "better-sqlite3";
 import path from "path";
