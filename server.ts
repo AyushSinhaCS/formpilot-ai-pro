@@ -17,20 +17,34 @@ app.use(express.json());
 const db = new Database("forms.db");
 db.exec(`CREATE TABLE IF NOT EXISTS forms (id TEXT PRIMARY KEY, title TEXT, questions TEXT);`);
 
-// NEW: AI Generation Route on the Server
+// AI Generation Route
 app.post("/api/generate", async (req, res) => {
+  const { prompt } = req.body;
+  const apiKey = process.env.VITE_GEMINI_API_KEY;
+
+  console.log("AI Request received for prompt:", prompt);
+  
+  if (!apiKey) {
+    console.error("CRITICAL ERROR: VITE_GEMINI_API_KEY is missing from environment variables!");
+    return res.status(500).json({ error: "Server configuration error: Missing API Key" });
+  }
+
   try {
-    const { prompt } = req.body;
-    const genAI = new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY || "");
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
     const result = await model.generateContent(`Generate a form JSON for: ${prompt}. Return ONLY JSON with "title" and "questions" (array of {question, type: "text" | "rating" | "multiple_choice", options?, required: boolean}).`);
-    const text = result.response.text().replace(/```json|```/g, "");
+    const text = result.response.text().replace(/```json|```/g, "").trim();
+    
+    console.log("AI successfully generated content.");
     res.json(JSON.parse(text));
-  } catch (error) {
-    res.status(500).json({ error: "AI Failed" });
+  } catch (error: any) {
+    console.error("GEMINI API ERROR:", error.message);
+    res.status(500).json({ error: "AI processing failed", details: error.message });
   }
 });
 
+// Save and Get Form routes
 app.post("/api/forms", (req, res) => {
   const { id, title, questions } = req.body;
   db.prepare("INSERT INTO forms (id, title, questions) VALUES (?, ?, ?)").run(id, title, JSON.stringify(questions));
@@ -43,12 +57,11 @@ app.get("/api/forms/:id", (req, res) => {
   res.json({ ...form, questions: JSON.parse(form.questions) });
 });
 
-if (process.env.NODE_ENV === "production") {
-  const distPath = path.resolve(__dirname, "dist");
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
-}
+// Production Static Serving
+const distPath = path.resolve(__dirname, "dist");
+app.use(express.static(distPath));
+app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 
 app.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server live on port ${PORT}`);
 });
