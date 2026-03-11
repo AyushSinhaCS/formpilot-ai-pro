@@ -22,21 +22,18 @@ app.post("/api/generate", async (req, res) => {
   const { prompt } = req.body;
   const apiKey = process.env.VITE_GEMINI_API_KEY;
 
-  console.log("AI Request received for prompt:", prompt);
-  
   if (!apiKey) {
-    console.error("CRITICAL ERROR: VITE_GEMINI_API_KEY is missing from environment variables!");
-    return res.status(500).json({ error: "Server configuration error: Missing API Key" });
+    return res.status(500).json({ error: "Missing API Key" });
   }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
+    // CHANGE THIS LINE: Ensure it is exactly "gemini-1.5-flash"
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const result = await model.generateContent(`Generate a form JSON for: ${prompt}. Return ONLY JSON with "title" and "questions" (array of {question, type: "text" | "rating" | "multiple_choice", options?, required: boolean}).`);
     const text = result.response.text().replace(/```json|```/g, "").trim();
     
-    console.log("AI successfully generated content.");
     res.json(JSON.parse(text));
   } catch (error: any) {
     console.error("GEMINI API ERROR:", error.message);
