@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 10000;
 
 app.use(express.json());
 
-// Initialize SQLite Database
+// Database Setup
 const db = new Database("forms.db");
 db.exec(`
   CREATE TABLE IF NOT EXISTS forms (
@@ -22,25 +22,19 @@ db.exec(`
     questions TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-  CREATE TABLE IF NOT EXISTS responses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    form_id TEXT NOT NULL,
-    answers TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (form_id) REFERENCES forms (id)
-  );
 `);
 
-// --- AI GENERATION ROUTE (Direct REST to bypass 404/v1beta error) ---
+// AI Generation Route (Stable REST API)
 app.post("/api/generate", async (req, res) => {
   const { prompt } = req.body;
   const apiKey = process.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: "Missing API Key in Environment Variables" });
+    return res.status(500).json({ error: "API Key missing on server" });
   }
 
   try {
+    // Calling the STABLE v1 endpoint with the specific model name
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
@@ -49,7 +43,8 @@ app.post("/api/generate", async (req, res) => {
         body: JSON.stringify({
           contents: [{ 
             parts: [{ 
-              text: `Generate a survey form JSON for: "${prompt}". Return ONLY the raw JSON.
+              text: `Generate a survey form JSON for: "${prompt}". 
+              Return ONLY raw JSON. No markdown.
               Format: { "title": "string", "questions": [{ "question": "string", "type": "text" | "rating" | "multiple_choice", "options": ["string"], "required": boolean }] }` 
             }] 
           }]
@@ -68,37 +63,29 @@ app.post("/api/generate", async (req, res) => {
     res.json(JSON.parse(cleanJson));
 
   } catch (error: any) {
-    console.error("AI Error:", error.message);
-    res.status(500).json({ error: "AI Failed", details: error.message });
+    console.error("Server AI Error:", error.message);
+    res.status(500).json({ error: "AI Failed" });
   }
 });
 
-// --- FORM ROUTES ---
+// Save Form
 app.post("/api/forms", (req, res) => {
-  try {
-    const { id, title, questions } = req.body;
-    const stmt = db.prepare("INSERT INTO forms (id, title, questions) VALUES (?, ?, ?)");
-    stmt.run(id, title, JSON.stringify(questions));
-    res.json({ success: true, id });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+  const { id, title, questions } = req.body;
+  db.prepare("INSERT INTO forms (id, title, questions) VALUES (?, ?, ?)").run(id, title, JSON.stringify(questions));
+  res.json({ success: true });
 });
 
+// Get Form
 app.get("/api/forms/:id", (req, res) => {
   const form = db.prepare("SELECT * FROM forms WHERE id = ?").get(req.params.id) as any;
   if (!form) return res.status(404).send("Not Found");
   res.json({ ...form, questions: JSON.parse(form.questions) });
 });
 
-// --- PRODUCTION SERVING ---
+// Production Static Serving
 const distPath = path.resolve(__dirname, "dist");
 app.use(express.static(distPath));
-
-// Important: Catch-all route to handle React Router links (/form/id)
-app.get("*", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
-});
+app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 
 app.listen(Number(PORT), "0.0.0.0", () => {
   console.log(`Server live on port ${PORT}`);
