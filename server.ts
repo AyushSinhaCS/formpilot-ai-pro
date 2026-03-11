@@ -42,10 +42,25 @@ app.post("/api/generate", async (req, res) => {
 });
 
 // Save and Get Form routes
-app.post("/api/forms", (req, res) => {
-  const { id, title, questions } = req.body;
-  db.prepare("INSERT INTO forms (id, title, questions) VALUES (?, ?, ?)").run(id, title, JSON.stringify(questions));
-  res.json({ success: true });
+app.post("/api/generate", async (req, res) => {
+  const { prompt } = req.body;
+  const apiKey = process.env.VITE_GEMINI_API_KEY;
+
+  if (!apiKey) return res.status(500).json({ error: "Missing API Key" });
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Use the specific model name that works with the stable API
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    
+    const result = await model.generateContent(`Generate a form JSON for: ${prompt}. Return ONLY JSON with "title" and "questions" (array of {question, type: "text" | "rating" | "multiple_choice", options?, required: boolean}).`);
+    const text = result.response.text().replace(/```json|```/g, "").trim();
+    
+    res.json(JSON.parse(text));
+  } catch (error: any) {
+    console.error("GEMINI ERROR:", error.message);
+    res.status(500).json({ error: "AI failed", details: error.message });
+  }
 });
 
 app.get("/api/forms/:id", (req, res) => {
