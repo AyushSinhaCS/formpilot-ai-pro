@@ -20,18 +20,18 @@ export default function CreateFormPage() {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     try {
-      // Use the VITE_ prefix for production
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
       
-      const result = await model.generateContent(`Generate a form JSON for: ${prompt}. Return ONLY JSON with "title" and "questions" (array of {question, type: "text" | "rating" | "multiple_choice", options?, required: boolean}).`);
-      const text = result.response.text().replace(/```json|```/g, "");
-      const data = JSON.parse(text);
+      if (!response.ok) throw new Error("Server AI failed");
+      
+      const data = await response.json();
       setGeneratedForm({ id: Date.now().toString(), ...data });
     } catch (error) {
-      console.error(error);
-      alert("AI Generation failed. Check your API Key in Render Environment Variables.");
+      alert("AI Generation failed. Check Render Logs.");
     } finally {
       setIsGenerating(false);
     }
