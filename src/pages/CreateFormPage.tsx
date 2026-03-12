@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, FileText, ArrowRight, Copy, CheckCircle2 } from "lucide-react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Loader2, FileText, CheckCircle2 } from "lucide-react";
 
 export default function CreateFormPage() {
   const [prompt, setPrompt] = useState("");
@@ -9,12 +8,6 @@ export default function CreateFormPage() {
   const [generatedForm, setGeneratedForm] = useState<any>(null);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  const examplePrompts = [
-    "Create a restaurant feedback survey",
-    "Create an event registration form",
-    "Create a job application form"
-  ];
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -25,20 +18,16 @@ export default function CreateFormPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt })
       });
-      
-      if (!response.ok) throw new Error("Server AI failed");
-      
       const data = await response.json();
-      setGeneratedForm({ id: Date.now().toString(), ...data });
+      setGeneratedForm(data);
     } catch (error) {
-      alert("AI Generation failed. Check Render Logs.");
+      alert("AI Generation failed.");
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handlePublish = async () => {
-    if (!generatedForm) return;
     const id = Math.random().toString(36).substring(7);
     try {
       await fetch("/api/forms", {
@@ -69,34 +58,44 @@ export default function CreateFormPage() {
               className="w-full h-32 p-5 border border-gray-200 rounded-xl mb-6 outline-none bg-[#fcfcfc]" 
               placeholder="e.g. Create a restaurant feedback survey..."
             />
-            
             <button 
               onClick={handleGenerate} 
-              disabled={isGenerating || !prompt.trim()}
-              className="w-full bg-black text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-6"
+              disabled={isGenerating}
+              className="w-full bg-black text-white py-4 rounded-xl font-bold flex items-center justify-center"
             >
               {isGenerating ? <Loader2 className="animate-spin" /> : "Generate with AI"}
             </button>
-
-            <p className="text-sm font-medium text-gray-500 mb-3">Suggestions:</p>
-            <div className="flex flex-wrap gap-2">
-              {examplePrompts.map((ex) => (
-                <button key={ex} onClick={() => setPrompt(ex)} className="px-3 py-1.5 bg-gray-100 rounded-md text-sm hover:bg-gray-200">
-                  {ex}
-                </button>
-              ))}
-            </div>
           </>
         ) : (
-          <div className="animate-in fade-in duration-500">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-2xl font-bold mb-6">Preview: {generatedForm.title}</h2>
+            
+            {/* THIS IS THE MISSING PART: Displaying the questions */}
+            <div className="space-y-6 mb-8">
+              {generatedForm.questions.map((q: any, index: number) => (
+                <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                  <p className="font-medium text-gray-900 mb-2">{q.question}</p>
+                  <div className="h-10 w-full bg-white border border-gray-200 rounded-md"></div>
+                </div>
+              ))}
+            </div>
+
             {publishedUrl ? (
-              <div className="p-6 bg-green-50 border border-green-200 rounded-xl text-center">
-                <p className="text-green-800 font-bold mb-2">Form is live!</p>
-                <a href={publishedUrl} target="_blank" className="text-blue-600 underline break-all">{publishedUrl}</a>
+              <div className="p-6 bg-green-50 border border-green-200 rounded-xl">
+                <div className="flex items-center gap-2 text-green-700 font-bold mb-2">
+                  <CheckCircle2 size={20} /> Form is live!
+                </div>
+                <input 
+                  readOnly 
+                  value={publishedUrl} 
+                  className="w-full p-2 bg-white border border-green-200 rounded text-sm text-blue-600 underline"
+                />
               </div>
             ) : (
-              <button onClick={handlePublish} className="w-full bg-black text-white py-4 rounded-xl font-bold">
+              <button 
+                onClick={handlePublish} 
+                className="w-full bg-black text-white py-4 rounded-xl font-bold"
+              >
                 Confirm & Publish
               </button>
             )}
